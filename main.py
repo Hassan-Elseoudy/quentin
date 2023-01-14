@@ -90,7 +90,8 @@ if __name__ == '__main__':
 
                 tew = link_soup.find(class_='top-excerpt-wrap')
                 if tew:
-                    activity = tew.find('p').text
+                    if tew.find('p'):
+                        activity = tew.find('p').text
                 company_detailed_terms = ",".join(
                     [i.text for i in link_soup.find_all('li', class_='archived-sub-vertical-item')])
 
