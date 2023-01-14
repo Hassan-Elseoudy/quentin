@@ -1,5 +1,9 @@
+import csv
+
 import requests
 from bs4 import BeautifulSoup
+
+from QuentinExporter import QuentinExporter
 
 headers = {
     'authority': 'proptechzone.com',
@@ -29,92 +33,155 @@ cookies = {
     '_ga_W5JG9JN9ET': 'GS1.1.1673623329.2.1.1673623613.0.0.0',
 }
 
-# Open a file: file
-file = open('text.txt', mode='r')
 
-# read all lines at once
-all_of_it = file.read()
-
-# close the file
-file.close()
+def get_text_from_file():
+    file = open('text.txt', mode='r')
+    all_of_it = file.read()
+    file.close()
+    return all_of_it
 
 
-# Parse the HTML content
-soup = BeautifulSoup(all_of_it, 'html.parser')
+if __name__ == '__main__':
 
-# Find all <li> tags with class "prop-arch-item"
-li_tags = soup.find_all('li', class_='prop-arch-item')
+    soup = BeautifulSoup(get_text_from_file(), 'html.parser')
+    li_tags = soup.find_all('li', class_='prop-arch-item')
 
-# Loop through the <li> tags
-for li in li_tags:
-    # Find the <article> tag with class "startups"
-    article = li.find('article', class_='startups')
-    if article:
-        # Find the <a> tag and extract the href
-        a_tag = article.find('a')
-        if a_tag:
-            href = a_tag['href']
-            print(href)
+    company_url: str = ''
+    company_name: str = ''
+    company_title: str = ''
+    company_description: str = ''
+    company_content: str = ''
+    company_main_terms: str = ''
+    company_detailed_terms: str = ''
+    activity: str = ''
+    company_linked_in: str = ''
+    company_founding_year: str = ''
+    company_employees: str = ''
 
-        # Find the <header> tag with class "home-arch-item-header"
-        header = article.find('header', class_='home-arch-item-header')
-        if header:
-            # Find the <span> tag with class "home-arch-item-title" and extract its text
-            title = header.find('span', class_='home-arch-item-title').text
+    rows: [QuentinExporter] = []
 
-            # Find the <div> tag with class "startup-terms"
-            terms_div = header.find('div', class_='startup-terms')
-            if terms_div:
-                # Find all <span> tags with class "archive-item-term" and extract their text
-                terms = [term.text for term in terms_div.find_all('span', class_='archive-item-term')]
+    # Loop through the <li> tags
+    for li in li_tags:
+        article = li.find('article', class_='startups')
+        if article:
+            header = article.find('header', class_='home-arch-item-header')
+            if header:
+                if header.find('span', class_='home-arch-item-title'):
+                    company_title = header.find('span', class_='home-arch-item-title').text
 
-        # Find the <div> tag with class "startup-excerpt" and extract its text
-        excerpt = article.find('div', class_='startup-excerpt').text
+                terms_div = header.find('div', class_='startup-terms')
+                if terms_div:
+                    company_main_terms = ",".join(
+                        [term.text for term in terms_div.find_all('span', class_='archive-item-term')
+                         if term is not None])
 
-        # Find the <a> tag with class "home-arch-item-btn" and extract its href
-        link_btn = article.find('a', class_='home-arch-item-btn')
-        if link_btn:
-            link_href = link_btn['href']
-            # Make a request to the link and extract the information
+            if article.find('div', class_='startup-excerpt'):
+                company_description = article.find('div', class_='startup-excerpt').text
 
-            response = requests.get(link_href, headers=headers, cookies=cookies)
-            link_soup = BeautifulSoup(response.content, 'html.parser')
+            link_btn = article.find('a', class_='home-arch-item-btn')
+            if link_btn:
+                link_href = link_btn['href']
 
-            # Extract the text from elements with class name "entry-title", "startup-url", "top-excerpt-wrap", "startup-top-info-stats-cont", "startup-side-info-icons-mobile", "startup-content-inner" and "startup-team-wrapper"
-            entry_title = link_soup.find(class_='entry-title').text
-            startup_url = link_soup.find(class_='startup-url').text
-            top_excerpt_wrap = link_soup.find(class_='top-excerpt-wrap').text
-            topics = ",".join([i.text for i in link_soup.find_all('li', class_='archived-sub-vertical-item')])
+                response = requests.get(link_href, headers=headers, cookies=cookies)
+                link_soup = BeautifulSoup(response.content, 'html.parser')
 
+                company_name = link_soup.find(class_='entry-title').text if link_soup.find(class_='entry-title') else ''
+                company_url = link_soup.find(class_='startup-url').text if link_soup.find(class_='startup-url') else ''
 
-            stats = {}
-            for stat in link_soup.find_all('div', class_='stat-cont'):
-                stat_title = stat.find('span', class_='startup-page-stat-title').text
-                stat_data = ",".join([s.text for s in stat.find_all('span', class_='startup-page-stat-data')])
-                stats[stat_title] = stat_data
+                tew = link_soup.find(class_='top-excerpt-wrap')
+                if tew:
+                    activity = tew.find('p').text
+                company_detailed_terms = ",".join(
+                    [i.text for i in link_soup.find_all('li', class_='archived-sub-vertical-item')])
 
-            startup_content_inner = link_soup.find(class_='startup-content-inner').text
-            sidebar_social_link = link_soup.find(class_='sidebar-social-link').text
+                stats = {}
+                for stat in link_soup.find_all('div', class_='stat-cont'):
+                    stat_title = stat.find('span', class_='startup-page-stat-title').text if stat.find('span',
+                                                                                                       class_='startup-page-stat-title') else ''
+                    stat_data = ",".join([s.text for s in stat.find_all('span', class_='startup-page-stat-data')])
+                    stats[stat_title] = stat_data
 
-            team = []
-            team_member_divs = link_soup.find_all('div', class_='team-member-item')
-            for team_member_div in team_member_divs:
-                person = {}
-                # Find the <div> tag with class "team-member-img-wrap"
-                img_wrap_div = team_member_div.find('div', class_='team-member-img-wrap')
-                if img_wrap_div:
-                    # Find the <img> tag and extract the src
-                    img_tag = img_wrap_div.find('img')
-                    if img_tag:
-                        person['img'] = img_tag['src']
-                # Find the <div> tag with class "team-member-info-wrap"
-                info_wrap_div = team_member_div.find('div', class_='team-member-info-wrap')
-                if info_wrap_div:
-                    # Find the <span> tags and extract their text
-                    person['name'] = info_wrap_div.find('span', class_='team-member-name').text
-                    person['title'] = info_wrap_div.find('span', class_='team-member-title').text
-                    # Find the <a> tag and extract the href
-                    a_tag = info_wrap_div.find('a')
-                    if a_tag:
-                        person['url'] = a_tag['href']
-                team.append(person)
+                company_content = link_soup.find(class_='startup-content-inner').text if link_soup.find(
+                    class_='startup-content-inner') else ''
+
+                if link_soup.find(class_='sidebar-social-link'):
+                    company_linked_in = link_soup.find('a', class_='sidebar-social-link').get('href', '')
+
+                team = []
+                team_member_divs = link_soup.find_all('div', class_='team-member-item')
+                for team_member_div in team_member_divs:
+                    person = {}
+
+                    img_wrap_div = team_member_div.find('div', class_='team-member-img-wrap')
+                    if img_wrap_div:
+                        # Find the <img> tag and extract the src
+                        img_tag = img_wrap_div.find('img')
+                        if img_tag:
+                            person['img'] = img_tag['src']
+
+                    info_wrap_div = team_member_div.find('div', class_='team-member-info-wrap')
+                    if info_wrap_div and len(info_wrap_div.find_all('span', class_='title-14')):
+                        if info_wrap_div.find_all('span', class_='title-14')[0]:
+                            person['name'] = info_wrap_div.find_all('span', class_='title-14')[0].text
+                        if len(info_wrap_div.find_all('span', class_='title-14')) == 2 and \
+                                info_wrap_div.find_all('span', class_='title-14')[1]:
+                            person['title'] = info_wrap_div.find_all('span', class_='title-14')[1].text
+                        a_tag = info_wrap_div.find('a')
+                        if a_tag:
+                            person['url'] = a_tag['href']
+                    team.append(person)
+
+                company_founding_year = stats.get('Year Founded', '')
+                company_employees = stats.get('Employees', '')
+
+                if not team:
+                    rows.append(QuentinExporter(
+                        company_url,
+                        company_name,
+                        activity,
+                        company_linked_in,
+                        company_founding_year,
+                        company_employees,
+                        '',
+                        '',
+                        '',
+                        company_title,
+                        company_description,
+                        company_content,
+                        company_main_terms,
+                        company_detailed_terms,
+                        stats
+                    ))
+
+                else:
+                    for member in team[:min(len(team), 3)]:
+                        rows.append(QuentinExporter(
+                            company_url,
+                            company_name,
+                            activity,
+                            company_linked_in,
+                            company_founding_year,
+                            company_employees,
+                            member.get('name', ''),
+                            member.get('title', ''),
+                            member.get('url', ''),
+                            company_title,
+                            company_description,
+                            company_content,
+                            company_main_terms,
+                            company_detailed_terms,
+                            stats
+                        ))
+
+    with open('data.csv', 'w', ) as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(['company_url', 'company_name', 'activity', 'company_linked_in', 'company_founding_year',
+                         'company_employees', 'person_full_name', 'person_job_title', 'person_url', 'company_title',
+                         'company_description', 'company_content', 'company_main_terms', 'company_detailed_terms',
+                         'stats'])
+        for row in rows:
+            writer.writerow(
+                [row.company_url, row.company_name, row.activity, row.company_linked_in, row.company_founding_year,
+                 row.company_employees, row.person_full_name, row.person_job_title, row.person_url, row.company_title,
+                 row.company_description, row.company_content, row.company_main_terms, row.company_detailed_terms,
+                 str(row.stats)])
